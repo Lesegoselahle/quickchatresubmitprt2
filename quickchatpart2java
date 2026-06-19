@@ -1,0 +1,257 @@
+
+/*
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
+ */
+
+package com.mycompany.quickchat;
+
+import java.util.ArrayList;
+import java.util.Random;
+import java.util.Scanner;
+import org.json.JSONObject;
+import org.json.JSONArray;
+import java.io.FileWriter;
+import java.io.IOException;
+
+public class Quickchat {
+
+    // Inner class for Login functionality
+    private static class Login {
+        private String username;
+        private String password;
+        private String cellPhoneNumber;
+
+        // Check username: 1-5 alphanumeric + underscore
+        public boolean checkUsername(String username) {
+            if (username == null) return false;
+            String regex = "^[A-Za-z0-9_]{1,5}$";
+            return username.matches(regex);
+        }
+
+        // Check password complexity: at least 8 characters, 1 uppercase, 1 digit, 1 special character
+        public boolean checkPasswordComplexity(String password) {
+            if (password == null) return false;
+            String regex = "^(?=.*[A-Z])(?=.*\\d)(?=.*[^A-Za-z0-9]).{8,}$";
+            return password.matches(regex);
+        }
+
+        // South African cell number: +27 followed by 9 digits
+        public boolean checkCellPhoneNumber(String cellPhoneNumber) {
+            if (cellPhoneNumber == null) return false;
+            String regex = "^\\+27\\d{9}$";
+            return cellPhoneNumber.matches(regex);
+        }
+
+        // Register user
+        public String registerUser(String username, String password, String cellPhoneNumber) {
+            if (!checkUsername(username)) {
+                return "Username is not correctly formatted; please ensure that username contains only letters, numbers, or underscore and is 1-5 characters long.";
+            }
+            if (!checkPasswordComplexity(password)) {
+                return "Password is not correctly formatted; please ensure it has at least 8 characters, including uppercase, digit and special character.";
+            }
+            if (!checkCellPhoneNumber(cellPhoneNumber)) {
+                return "Cell phone number incorrectly formatted or does not contain international code (+27).";
+            }
+            this.username = username;
+            this.password = password;
+            this.cellPhoneNumber = cellPhoneNumber;
+            return "Username successfully captured.";
+        }
+
+        // Login user
+        public boolean loginUser(String username, String password) {
+            return this.username != null && this.password != null
+                    && this.username.equals(username) && this.password.equals(password);
+        }
+    }
+
+    // Message class for storing message data
+    private static class Message {
+        String messageID;
+        String messageHash;
+        String recipient;
+        String content;
+
+        public Message(String id, String hash, String recipient, String content) {
+            this.messageID = id;
+            this.messageHash = hash;
+            this.recipient = recipient;
+            this.content = content;
+        }
+
+        public JSONObject toJSON() {
+            JSONObject obj = new JSONObject();
+            obj.put("MessageID", messageID);
+            obj.put("MessageHash", messageHash);
+            obj.put("Recipient", recipient);
+            obj.put("Message", content);
+            return obj;
+        }
+    }
+
+    private static int messageCount = 0;
+    private static final ArrayList<Message> sentMessages = new ArrayList<>();
+    private static final Scanner sc = new Scanner(System.in);
+
+    public static void main(String[] args) {
+        Login login = new Login();
+
+        // Registration
+        System.out.print("Enter username: ");
+        String username = sc.nextLine();
+        System.out.print("Enter password: ");
+        String password = sc.nextLine();
+        System.out.print("Enter cell phone number (+27...): ");
+        String cell = sc.nextLine();
+
+        String regResult = login.registerUser(username, password, cell);
+        System.out.println(regResult);
+
+        if (!regResult.equals("Username successfully captured.")) {
+            System.out.println("Registration failed. Exiting.");
+            return;
+        }
+
+        // Login
+        System.out.print("Enter username to login: ");
+        String loginUsername = sc.nextLine();
+        System.out.print("Enter password to login: ");
+        String loginPassword = sc.nextLine();
+
+        if (!login.loginUser(loginUsername, loginPassword)) {
+            System.out.println("Login failed. Exiting.");
+            return;
+        }
+        System.out.println("Welcome " + username + ", it is great to see you.");
+
+        // Main menu loop
+        int choice;
+        do {
+            System.out.println("\n===MAIN MENU===");
+            System.out.println("1. Send Messages");
+            System.out.println("2. Show recently sent messages");
+            System.out.println("3. Quit");
+            System.out.print("Enter choice: ");
+            choice = readInt();
+
+            switch (choice) {
+                case 1:
+                    sendMessage();
+                    break;
+                case 2:
+                    showRecentMessages();
+                    break;
+                case 3:
+                    System.out.println("Goodbye!");
+                    break;
+                default:
+                    System.out.println("Invalid choice.");
+            }
+        } while (choice != 3);
+    }
+
+    // Safely reads an int from the scanner without crashing on bad input
+    private static int readInt() {
+        while (!sc.hasNextInt()) {
+            System.out.print("Please enter a valid number: ");
+            sc.next();
+        }
+        int val = sc.nextInt();
+        sc.nextLine();
+        return val;
+    }
+
+    private static boolean checkRecipientCell(String recipient) {
+        return recipient != null && recipient.matches("^\\+27\\d{9}$");
+    }
+
+    private static boolean checkMessageLength(String message) {
+        return message != null && message.length() <= 250;
+    }
+
+    // firstTwoDigits:messageNumber:FIRSTWORDLASTWORD
+    private static String generateMessageHash(String messageID, int msgNumber, String content) {
+        String firstTwoDigits = messageID.substring(0, 2);
+        String[] words = content.trim().split("\\s+");
+        String firstWord = words.length > 0 ? words[0] : "";
+        String lastWord = words.length > 1 ? words[words.length - 1] : firstWord;
+        return (firstTwoDigits + ":" + msgNumber + ":" + firstWord + lastWord).toUpperCase();
+    }
+
+    private static void sendMessage() {
+        Random rand = new Random();
+        String messageID = String.valueOf(1000000000L + (long) (rand.nextDouble() * 9000000000L));
+
+        System.out.print("Enter recipient number (+27...): ");
+        String recipient = sc.nextLine();
+
+        if (!checkRecipientCell(recipient)) {
+            System.out.println("Cell number is incorrectly formatted.");
+            return;
+        }
+
+        System.out.print("Enter message (max 250 characters): ");
+        String msg = sc.nextLine();
+
+        if (!checkMessageLength(msg)) {
+            System.out.println("Please enter a message of less than 250 characters.");
+            return;
+        }
+
+        String hash = generateMessageHash(messageID, messageCount + 1, msg);
+
+        System.out.println("\n---Message Details---");
+        System.out.println("Message ID: " + messageID);
+        System.out.println("Message Hash: " + hash);
+        System.out.println("Recipient: " + recipient);
+        System.out.println("Message: " + msg);
+
+        System.out.println("1. Send Message");
+        System.out.println("0. Delete message");
+        System.out.println("2. Store Message to send later");
+        System.out.print("Choose option: ");
+        int opt = readInt();
+
+        if (opt == 1) {
+            Message m = new Message(messageID, hash, recipient, msg);
+            sentMessages.add(m);
+            messageCount++;
+            System.out.println("Message successfully sent.");
+            saveMessagesToJSON();
+        } else if (opt == 0) {
+            System.out.println("Message deleted.");
+        } else if (opt == 2) {
+            System.out.println("Message stored for later.");
+        } else {
+            System.out.println("Invalid option, message discarded.");
+        }
+    }
+
+    private static void showRecentMessages() {
+        if (sentMessages.isEmpty()) {
+            System.out.println("No messages sent yet.");
+            return;
+        }
+        for (Message m : sentMessages) {
+            System.out.println("\nMessage ID: " + m.messageID);
+            System.out.println("Message Hash: " + m.messageHash);
+            System.out.println("Recipient: " + m.recipient);
+            System.out.println("Message: " + m.content);
+        }
+    }
+
+    private static void saveMessagesToJSON() {
+        JSONArray jsonArray = new JSONArray();
+        for (Message m : sentMessages) {
+            jsonArray.put(m.toJSON());
+        }
+        try (FileWriter file = new FileWriter("messages.json")) {
+            file.write(jsonArray.toString(4));
+            file.flush();
+            System.out.println("Messages saved to messages.json");
+        } catch (IOException e) {
+            System.out.println("Error saving to JSON: " + e.getMessage());
+        }
+    }
+}
